@@ -1,6 +1,6 @@
 {
   "name": "node-all-paths",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A NodeJS implementation to find all possible paths from a graph.",
   "author": "Chris Wong <chris@cogifire.com>",
   "main": "libs/Graph.js",
