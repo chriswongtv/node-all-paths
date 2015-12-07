@@ -55,17 +55,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }
 
         /**
-         * Alias of addNode
-         */
-      }, {
-        key: "addVertex",
-        value: function addVertex() {
-          console.log('Graph#addVertex is deprecated, use Graph#addNode instead');
-
-          return this.addNode.apply(this, arguments);
-        }
-
-        /**
          * Compute the shortest path between the specified nodes
          *
          * @param {string}  start     - Starting node
@@ -86,8 +75,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
       }, {
         key: "path",
         value: function path(start, goal, options) {
-          var _this = this;
-
           options = options || {};
 
           // Don't run when we don't have nodes set
@@ -101,21 +88,19 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
           var frontier = new Queue();
           var previous = new Map();
 
-          var path = [];
+          var paths = [];
           var totalCost = 0;
 
           // Add the starting point to the frontier, it will be the first node visited
           frontier.set(start, 0);
 
-          // Run until we have visited every node in the frontier
+          recursive(this.graph, frontier.next());
 
-          var _loop = function () {
-            // Get the node in the frontier with the lowest cost (`priority`)
-            var node = frontier.next();
-
+          function recursive(graph, node) {
             // When the node with the lowest cost in the frontier in our goal node,
             // we can compute the path and exit the loop
             if (node.key === goal) {
+              var path = [];
               // Set the total cost to the current value
               totalCost = node.priority;
 
@@ -125,87 +110,48 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
                 _nodeKey = previous.get(_nodeKey);
               }
 
-              return "break";
+              // Remove the first value (the goal node) if we want a trimmed result
+              if (options.trim) {
+                path.shift();
+              } else {
+                // Add the origin waypoint at the end of the array
+                path = path.concat([start]);
+              }
+
+              // Reverse the path if we don't want it reversed, so the result will be
+              // from `start` to `goal`
+              if (!options.reverse) {
+                path = path.reverse();
+              }
+
+              // Return an object if we also want the cost
+              if (options.cost) {
+                paths.push({
+                  path: path,
+                  cost: totalCost
+                });
+              } else paths.push(path);
+
+              return;
+            } else {
+              // Loop all the neighboring nodes
+              var neighbors = graph.get(node.key) || new Map();
+              neighbors.forEach(function (_cost, _node) {
+                var element = { 'key': _node, 'priority': _cost };
+                previous.set(_node, node.key);
+                recursive(graph, element);
+              });
             }
-
-            // Add the current node to the explored set
-            explored.add(node.key);
-
-            // Loop all the neighboring nodes
-            var neighbors = _this.graph.get(node.key) || new Map();
-            neighbors.forEach(function (_cost, _node) {
-              // If we already explored the node, skip it
-              if (explored.has(_node)) return false;
-
-              // If the neighboring node is not yet in the frontier, we add it with
-              // the correct cost
-              if (!frontier.has(_node)) {
-                previous.set(_node, node.key);
-                return frontier.set(_node, node.priority + _cost);
-              }
-
-              var frontierPriority = frontier.get(_node).priority;
-              var nodeCost = node.priority + _cost;
-
-              // Othewhise we only update the cost of this node in the frontier when
-              // it's below what's currently set
-              if (nodeCost < frontierPriority) {
-                previous.set(_node, node.key);
-                frontier.set(_node, nodeCost);
-              }
-            });
-          };
-
-          while (!frontier.isEmpty()) {
-            var _ret = _loop();
-
-            if (_ret === "break") break;
           }
 
           // Return null when no path can be found
-          if (!path.length) {
-            if (options.cost) return { path: null, cost: 0 };
+          if (!paths.length) {
+            if (options.cost) return { paths: null, cost: 0 };
 
             return null;
           }
 
-          // From now on, keep in mind that `path` is populated in reverse order,
-          // from destination to origin
-
-          // Remove the first value (the goal node) if we want a trimmed result
-          if (options.trim) {
-            path.shift();
-          } else {
-            // Add the origin waypoint at the end of the array
-            path = path.concat([start]);
-          }
-
-          // Reverse the path if we don't want it reversed, so the result will be
-          // from `start` to `goal`
-          if (!options.reverse) {
-            path = path.reverse();
-          }
-
-          // Return an object if we also want the cost
-          if (options.cost) {
-            return {
-              path: path,
-              cost: totalCost
-            };
-          }
-
-          return path;
-        }
-
-        /**
-         * Alias of `path`
-         */
-      }, {
-        key: "shortestPath",
-        value: function shortestPath() {
-          console.log('Graph#shortestPath is deprecated, use Graph#path instead');
-
-          return this.path.apply(this, arguments);
+          return paths;
         }
       }]);
 
@@ -216,21 +162,35 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
   }, { "./PriorityQueue": 2, "./populateMap": 3 }], 2: [function (require, module, exports) {
     'use strict';
 
+    /**
+     * This very basic implementation of a priority queue is used to select the
+     * next node of the graph to walk to.
+     *
+     * The queue is always sorted to have the least expensive node on top. Some
+     * comodoty methods are also implemented.
+     *
+     * You should **never** modify the queue directly, but only using the methods
+     * provided by the class.
+     */
+
     var PriorityQueue = (function () {
 
       /**
-       * Creates a new queue:
+       * Creates a new empty priority queue
        */
 
       function PriorityQueue() {
         _classCallCheck(this, PriorityQueue);
 
+        // The `_keys` set is used to greately improve the speed at which we can
+        // check the presence of a value in the queue
         this._keys = new Set();
+
         this._queue = [];
       }
 
       /**
-       * Sort the queue to oderd them based on the priority
+       * Sort the queue to have the least expensive node to visit on top
        *
        * @private
        */
@@ -244,31 +204,27 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }
 
         /**
-         * Add or update the priority of a key
+         * Sets a priority for a key in the queue.
+         * Inserts it in the queue if it does not already exists.
          *
-         * @param {any}    key      - Key to insert
-         * @param {number} priority - Priority of the key
-         *
-         * @return {nunber} Size of the queue
+         * @param {any}     key       Key to update or insert
+         * @param {number}  priority  Priority of the key
+         * @return {number} Size of the queue
          */
       }, {
         key: "set",
         value: function set(key, priority) {
           priority = Number(priority);
-          if (isNaN(priority)) {
-            throw new TypeError('"priority" must be a valid number');
-          }
+          if (isNaN(priority)) throw new TypeError('"priority" must be a number');
 
           if (!this._keys.has(key)) {
-            // If the `_keys` set does not have this key, we are inserting a new one
+            // Insert a new entry if the key is not already in the queue
             this._keys.add(key);
             this._queue.push({ key: key, priority: priority });
           } else {
             // Update the priority of an existing key
             this._queue.map(function (element) {
-              if (element.key === key) {
-                element.priority = priority;
-              }
+              if (element.key === key) element.priority = priority;
 
               return element;
             });
@@ -280,9 +236,10 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }
 
         /**
-         * Remove the first element from the priority queue and returns it
+         * The next method is used to dequeue a key:
+         * It removes the first element from the queue and returns it
          *
-         * @return {object} The object as of the priority queue
+         * @return {object} First priority queue entry
          */
       }, {
         key: "next",
@@ -296,20 +253,18 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }
 
         /**
-         * Return true if the queue is empty
-         *
-         * @return {boolean}
+         * @return {boolean} `true` when the queue is empty
          */
       }, {
         key: "isEmpty",
         value: function isEmpty() {
-          return Boolean(!this._queue.length);
+          return Boolean(this._queue.length === 0);
         }
 
         /**
-         * Returns true if the queue contains the specified key
+         * Check if the queue has a key in it
          *
-         * @param {any} key - Key to check
+         * @param {any} key   Key to lookup
          * @return {boolean}
          */
       }, {
@@ -319,19 +274,17 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }
 
         /**
-         * Return the priority for a key
+         * Get the element in the queue with the specified key
          *
-         * @param {string} key - The key to search
+         * @param {any} key   Key to lookup
+         * @return {object}
          */
       }, {
         key: "get",
         value: function get(key) {
-          var result = undefined;
-          this._queue.forEach(function (element) {
-            if (element.key === key) result = element;
+          return this._queue.find(function (element) {
+            return element.key === key;
           });
-
-          return result;
         }
       }]);
 
@@ -343,34 +296,35 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
     'use strict';
 
     /**
-     * Assert that the cost is a positive number
+     * Assert that the provided cost in a positive number
      *
      * @private
-     * @param {number} cost - The cost to validate
-     * @return {number}
+     * @param {number} cost   Cost to validate
+     * @return {number} cost
      */
     function validateNode(cost) {
-      var _cost = Number(cost);
+      cost = Number(cost);
 
-      if (isNaN(_cost)) {
+      if (isNaN(cost)) {
         throw new TypeError("Cost must be a number, istead got " + cost);
       }
 
-      if (_cost <= 0) {
+      if (cost <= 0) {
         throw new TypeError("The cost must be a number above 0, instead got " + cost);
       }
 
-      return _cost;
+      return cost;
     }
 
     /**
-     * Populate a map with the values of an object with nested maps
+     * Populates the `Map` passed as first agument with the values in the provided
+     * object. Supports nested objects, recursively adding them to a `Map`
      *
-     * @param {Map}    map    - Map to populate
-     * @param {object} object - Object to use for the population
-     * @param {array}  keys   - Array of keys of the object
+     * @param {Map}    map      `Map` to populate with the values from the object
+     * @param {object} object   Object to translate into the `Map`
+     * @param {array}  keys     Keys of the object to assign to the `Map`
      *
-     * @return {Map} Populated map
+     * @return {Map} Populated `Map` with nested `Map`s
      */
     function populateMap(_x, _x2, _x3) {
       var _again = true;
@@ -379,7 +333,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         var map = _x,
             object = _x2,
             keys = _x3;
-        key = value = undefined;
         _again = false;
 
         // Return the map once all the keys have been populated
@@ -389,7 +342,8 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         var value = object[key];
 
         if (value !== null && typeof value === 'object') {
-          // When value is an object, we transform every key of it into a map
+          // When the key is an object, we recursevely populate its proprieties into
+          // a new `Map`
           value = populateMap(new Map(), value, Object.keys(value));
         } else {
           // Ensure the node is a positive number
@@ -404,6 +358,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         _x2 = object;
         _x3 = keys;
         _again = true;
+        key = value = undefined;
         continue _function;
       }
     }
