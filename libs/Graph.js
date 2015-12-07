@@ -59,9 +59,9 @@ class Graph {
       return null
     }
 
-    let explored = new Set()
     let frontier = new Queue()
     let previous = new Map()
+    let cost = new Map()
 
     let paths = []
     let totalCost = 0
@@ -69,9 +69,9 @@ class Graph {
     // Add the starting point to the frontier, it will be the first node visited
     frontier.set(start, 0)
 
-    recursive(this.graph, frontier.next());
+    findAll(this.graph, frontier.next());
 
-    function recursive(graph, node) {
+    function findAll(graph, node) {
       // When the node with the lowest cost in the frontier in our goal node,
       // we can compute the path and exit the loop
       if (node.key === goal) {
@@ -82,6 +82,7 @@ class Graph {
         let _nodeKey = node.key
         while (previous.has(_nodeKey)) {
           path.push(_nodeKey)
+          totalCost += cost.get(_nodeKey)
           _nodeKey = previous.get(_nodeKey)
         }
 
@@ -115,7 +116,8 @@ class Graph {
         neighbors.forEach(function (_cost, _node) {
           var element = { 'key': _node, 'priority': _cost };
           previous.set(_node, node.key);
-          recursive(graph, element);
+          cost.set(_node, _cost);
+          findAll(graph, element);
         })
       }
     }
