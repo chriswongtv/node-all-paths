@@ -7,7 +7,7 @@
 This plugin uses some ES6 features. You can run the latest version on **NodeJS `v4.0.0` or newer**
 
 ```shell
-npm install https://github.com/chriswongtv/node-all-paths.git --save
+npm install node-all-paths --save
 ```
 
 ## Usage
