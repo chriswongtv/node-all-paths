@@ -71,16 +71,28 @@ class Graph {
 
     findAll(this.graph, frontier.next());
 
-    function findAll(graph, node) {
+    function findAll(graph, node, visited = new Set([ start ])) {
       // When the node with the lowest cost in the frontier in our goal node,
       // we can compute the path and exit the loop
       if (node.key === goal) {
+
+        // reset visited for current path
+        visited = new Set([ start ])
+
         let path = [];
         // Set the total cost to the current value
         totalCost = node.priority
 
         let _nodeKey = node.key
         while (previous.has(_nodeKey)) {
+
+          // search depth limit
+          if (options.depth) {
+            if (path && path.length && path.length >= options.depth) {
+              return
+            }
+          }
+
           path.push(_nodeKey)
           totalCost += cost.get(_nodeKey)
           _nodeKey = previous.get(_nodeKey)
@@ -114,10 +126,27 @@ class Graph {
         // Loop all the neighboring nodes
         let neighbors = graph.get(node.key) || new Map()
         neighbors.forEach(function (_cost, _node) {
+
+          // ignore path with nodes point to each other
+          let neighborsOfNeighbor = graph.get(_node) || new Map();
+          if (neighborsOfNeighbor.has(node.key)) {
+            return
+          }
+
+          // reset visited
+          if (_node === goal)
+            visited = new Set([ start ])
+
+          if (visited.has(_node)) {
+            return
+          } else {
+            visited.add(_node);
+          }
+
           var element = { 'key': _node, 'priority': _cost };
           previous.set(_node, node.key);
           cost.set(_node, _cost);
-          findAll(graph, element);
+          findAll(graph, element, visited);
         })
       }
     }
